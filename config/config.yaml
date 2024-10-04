@@ -1,0 +1,40 @@
+camera:
+  device_index: 0
+  resolution:
+    width: 640
+    height: 480
+  frame_rate: 30
+
+gpio_pins:
+  left_motor:
+    in1: 7   # GPIO09
+    in2: 11  # GPIO08
+    in3: 13  # GPIO07
+    in4: 15  # GPIO12
+  right_motor:
+    in1: 16  # GPIO13
+    in2: 18  # GPIO11
+    in3: 22  # GPIO10
+    in4: 29  # GPIO01
+  level_shifter:
+    lv: 1.8
+    hv: 5.0
+
+model:
+  path: 'data/models/model_best.pth'
+  input_size:
+    width: 224
+    height: 224
+
+control:
+  pid:
+    kp: 1.0
+    ki: 0.1
+    kd: 0.05
+  max_speed: 1.0
+  min_speed: 0.0
+
+logging:
+  level: 'DEBUG'
+  log_to_file: True
+  log_file_path: 'logs/runtime_logs.txt'
