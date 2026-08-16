@@ -5,36 +5,46 @@ camera:
     height: 480
   frame_rate: 30
 
-gpio_pins:
-  left_motor:
-    in1: 7   # GPIO09
-    in2: 11  # GPIO08
-    in3: 13  # GPIO07
-    in4: 15  # GPIO12
-  right_motor:
-    in1: 16  # GPIO13
-    in2: 18  # GPIO11
-    in3: 22  # GPIO10
-    in4: 29  # GPIO01
-  level_shifter:
-    lv: 1.8
-    hv: 5.0
+robot:
+  wheelbase_m: 0.20
+  track_width_m: 0.18
+  max_command: 0.35
+  settle_before_rf_s: 0.75
+
+motor_controller:
+  port: /dev/ttyUSB0
+  baudrate: 115200
+  watchdog_ms: 500
+  require_explicit_arm: true
+
+navigation:
+  waypoint_tolerance_m: 0.12
+  heading_tolerance_rad: 0.20
+  linear_gain: 0.8
+  angular_gain: 1.2
+  max_linear_command: 0.30
+  max_angular_command: 0.30
+
+rf:
+  backend: simulated
+  simulated_beacon:
+    x_m: 3.0
+    y_m: 2.0
+    tx_power_db: -20.0
+    path_loss_exponent: 2.0
+    noise_std_db: 1.5
+  search:
+    step_m: 0.5
+    exploration_weight: 0.20
+    stop_radius_m: 0.5
 
 model:
-  path: 'data/models/model_best.pth'
+  path: data/models/model_best.pth
   input_size:
     width: 224
     height: 224
 
-control:
-  pid:
-    kp: 1.0
-    ki: 0.1
-    kd: 0.05
-  max_speed: 1.0
-  min_speed: 0.0
-
 logging:
-  level: 'DEBUG'
-  log_to_file: True
-  log_file_path: 'logs/runtime_logs.txt'
+  level: DEBUG
+  log_to_file: true
+  log_file_path: logs/runtime_logs.txt
