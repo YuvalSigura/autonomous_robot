@@ -17,9 +17,10 @@ class MotorLinkConfig:
 
 
 class MotorControllerLink:
-    """Small, explicit protocol to the ESP32 motor controller.
+    """Explicit serial protocol to the ESP32 motor controller.
 
-    Physical motion requires both an explicit `arm()` call and firmware-side ARM state.
+    Physical motion requires both an explicit `arm()` call and firmware-side ARM
+    state. Firmware watchdog behavior is independent of this host class.
     """
 
     def __init__(self, config: MotorLinkConfig, dry_run: bool = True) -> None:
@@ -37,7 +38,9 @@ class MotorControllerLink:
             timeout=0.2,
             write_timeout=0.2,
         )
+        # Many ESP32 boards reset when the serial port opens.
         time.sleep(1.0)
+        self._serial.reset_input_buffer()
         self.stop()
 
     def close(self) -> None:
@@ -57,8 +60,31 @@ class MotorControllerLink:
         self._serial.write((line.rstrip() + "\n").encode("ascii"))
         self._serial.flush()
 
+    def _read_until_prefix(self, prefix: str, timeout_s: float = 0.6) -> str:
+        if self.dry_run:
+            return f"{prefix} DRY_RUN"
+        if self._serial is None:
+            raise RuntimeError("Motor link is not open")
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            raw = self._serial.readline()
+            if not raw:
+                continue
+            line = raw.decode("ascii", errors="replace").strip()
+            if line.startswith(prefix):
+                return line
+        raise TimeoutError(f"No ESP32 reply beginning with {prefix!r}")
+
+    def ping(self) -> str:
+        if not self.dry_run and self._serial is not None:
+            self._serial.reset_input_buffer()
+        self._write("PING")
+        return self._read_until_prefix("PONG")
+
     def arm(self) -> None:
         self._write("ARM")
+        if not self.dry_run:
+            self._read_until_prefix("OK ARMED")
         self._armed = True
 
     def disarm(self) -> None:
