@@ -1,85 +1,113 @@
 # SpectraRover
 
-SpectraRover is an autonomous mobile research robot built around a Jetson Orin Nano and a four-wheel mecanum base. The physical robot already exists. The current rebuild focuses on making the complete non-RF stack reproducible first: four-wheel motor control, safety/watchdog behavior, camera support, camera calibration, visual navigation, and autonomous movement. HackRF Pro integration is the planned next research stage.
+SpectraRover is an autonomous mobile research robot built around an NVIDIA Jetson Orin Nano and a four-wheel mecanum base. The physical platform already exists; the current project branch prepares the complete **pre-HackRF** stack: motor control, fail-safe communications, camera support, calibration, visual navigation, autonomous movement, documentation, and tests.
 
-> Current development branch: `spectrarover-rebuild`.
+![SpectraRover hardware overview](docs/assets/spectrarover-hardware-overview.webp)
+
+> Development branch: `spectrarover-rebuild`
 >
-> Important status distinction: the software stack below is implemented, but physical values such as wheel polarity, motor-driver current margin, serial port, and camera calibration still have to be measured on the real chassis before they can be called hardware-verified.
+> The non-RF software stack is implemented and CI-tested. Hardware-specific values such as final wheel polarity, serial device name, camera intrinsics, motor-driver current margin, and sensor electrical interfaces remain chassis-specific calibration/verification items.
+
+## Project goal
+
+The next research stage adds HackRF Pro as a new sensing modality. Instead of only navigating through the physical environment, the rover will be able to collect RF observations at different positions and use those observations to drive RF-aware experiments such as spatial measurement, source-seeking, anomaly analysis, and active selection of the next measurement location.
+
+The intended loop is:
+
+```text
+MOVE
+  -> STOP MOTORS
+  -> SETTLE
+  -> CAPTURE RF
+  -> ANALYZE
+  -> CHOOSE NEXT TARGET
+  -> MOVE
+```
+
+The RF acquisition, RF/AI analysis, and final RF-evidence-to-next-waypoint policy are intentionally **not claimed as complete** before HackRF integration.
 
 ## Current hardware
 
-Verified from the existing robot/repository and build photos:
+Current/available hardware documented from the existing platform and component inventory includes:
 
-- NVIDIA Jetson Orin Nano Developer Kit 8 GB as the high-level computer
-- 4-wheel mecanum chassis
-- 4 DC geared TT-style motors
-- ESP32 development board with screw-terminal I/O expansion board
+- NVIDIA Jetson Orin Nano Developer Kit 8 GB
+- four-wheel mecanum / omni-directional chassis
+- 4 x geared DC motors
+- ESP32 development board with screw-terminal expansion board
 - L298N motor-driver hardware currently available/installed
-- 2 x TB6612FNG dual H-bridge breakout boards available for independent four-motor control, subject to motor stall-current verification
-- multiple camera types available; Logitech C270 is one confirmed model
+- 2 x TB6612FNG dual H-bridge breakout boards available for independent four-motor control, subject to stall-current verification
+- Logitech C270 camera (one confirmed camera option; the vision layer is camera-agnostic)
 - small I2C OLED display
-- multiple cylindrical proximity/photoelectric sensors mounted around the chassis; exact model/electrical interface still requires verification
+- front-mounted cylindrical proximity/photoelectric sensors, exact electrical interface to be verified
 - HC-SR04 ultrasonic modules available
-- IR receiver module available
 - u-blox NEO-6M GPS + antenna available for outdoor logging
 - Seeed Studio XIAO RP2040 available as an auxiliary MCU
-- Arduino Uno-compatible boards available for bench/prototyping work
-- breadboards, jumper leads, resistors, LEDs, switches and prototyping power modules
+- Arduino Uno-compatible boards for bench/prototyping work
+- 3-cell 18650 battery pack / power system
+- breadboards, jumper leads, resistors, LEDs, switches, and prototyping power modules
 
-See `docs/HARDWARE.md` and `docs/WIRING.md` for the component inventory and wiring plan.
+See [`docs/HARDWARE.md`](docs/HARDWARE.md), [`docs/WIRING.md`](docs/WIRING.md), and [`docs/BRINGUP.md`](docs/BRINGUP.md).
 
-## Architecture
+## System architecture
 
 ```text
-                     +--------------------------+
-                     |     Jetson Orin Nano     |
-                     |--------------------------|
- Camera ------------>| OpenCV / ArUco vision   |
-                     | navigation controller    |
- HackRF Pro (future)>| RF DSP / ML / planner   |
-                     +------------+-------------+
-                                  |
-                             USB serial
-                                  |
-                     +------------v-------------+
-                     |          ESP32           |
-                     |--------------------------|
-                     | ARM / DISARM             |
-                     | command watchdog         |
-                     | 4 independent motors     |
-                     +------------+-------------+
-                                  |
-                        2 x TB6612FNG
-                                  |
-                         FL FR RL RR motors
+                       +---------------------------+
+                       |      Jetson Orin Nano     |
+                       |---------------------------|
+ Camera -------------->| vision / localization    |
+ Future HackRF Pro --->| RF DSP / ML / planner    |
+                       | waypoint / mission logic  |
+                       +-------------+-------------+
+                                     |
+                                USB serial
+                                     |
+                       +-------------v-------------+
+                       |            ESP32          |
+                       |---------------------------|
+                       | explicit ARM / DISARM     |
+                       | command watchdog          |
+                       | four-wheel motor output   |
+                       +-------------+-------------+
+                                     |
+                            motor-driver stage
+                                     |
+                            FL  FR  RL  RR motors
 ```
 
-The Jetson does not directly drive the motors. It sends bounded wheel commands to the ESP32. The ESP32 owns the H-bridge outputs and stops/disarms on command timeout.
+The Jetson does not directly drive the motors. It sends bounded wheel commands to the ESP32. The ESP32 owns the low-level outputs and stops/disarms if commands disappear.
 
-## Implemented non-RF software
+## Implemented pre-HackRF software
 
-### Motor and chassis layer
+### Motor and chassis
 
-- four-wheel mecanum inverse kinematics (`vx`, `vy`, `wz` -> FL/FR/RL/RR)
-- per-wheel polarity configuration for real-world motor mounting/wiring
+- four-wheel mecanum inverse kinematics: `vx`, `vy`, `wz` -> FL / FR / RL / RR
+- forward, reverse, lateral strafe, diagonal motion, and rotation command patterns
+- per-wheel polarity configuration
 - Jetson-to-ESP32 serial motor protocol
-- explicit ARM/DISARM states
-- firmware watchdog that stops the robot if commands disappear
-- individual-wheel and complete-chassis motor bench test
-- dry-run mode that cannot move the robot
+- explicit ARM / DISARM state
+- firmware communications watchdog
+- bounded motor output
+- individual-wheel and full-chassis bench utility
+- dry-run mode that cannot physically move the rover
 
-### Vision and navigation layer
+### Vision and navigation
 
-- camera-agnostic OpenCV wrapper
+- generic OpenCV camera wrapper
 - camera discovery utility
-- interactive camera calibration tool
+- camera calibration utility
 - ArUco marker generation
-- ArUco pose estimation using calibrated intrinsics
-- visual marker-following controller
-- autonomous multi-marker route runner
-- generic pose-to-waypoint controller for later global-localization backends
+- calibrated ArUco pose estimation
+- marker approach/follow controller
+- autonomous route through a sequence of visual markers
+- generic 2D pose-to-waypoint controller that can later accept another localization backend
+- stop behavior when the visual navigation target is lost
 
-This gives the robot a complete pre-HackRF autonomous movement path that can be validated using only the existing robot and a camera such as the Logitech C270.
+### Engineering / validation
+
+- deterministic unit tests for mecanum kinematics, navigation behavior, and serial safety state
+- GitHub Actions CI
+- startup self-check for camera + ESP32 communications
+- hardware inventory, wiring notes, and staged bring-up procedure
 
 ## Quick bring-up
 
@@ -89,13 +117,19 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Find cameras:
+Run the non-moving startup checks:
+
+```bash
+python3 scripts/startup_check.py
+```
+
+Find available cameras:
 
 ```bash
 python3 scripts/list_cameras.py
 ```
 
-Calibrate the selected camera:
+Calibrate the selected navigation camera:
 
 ```bash
 python3 scripts/calibrate_camera.py --device 0 --cols 9 --rows 6 --square-mm 25
@@ -107,13 +141,13 @@ Generate navigation markers:
 python3 scripts/generate_aruco_markers.py --ids 0 1 2 3
 ```
 
-Test all four motors without physical movement:
+Preview the complete motor test without physical movement:
 
 ```bash
 python3 scripts/motor_bench.py
 ```
 
-First real motor test must be performed with the chassis on stands:
+First physical motor test should be performed with the chassis safely lifted so all wheels are off the floor:
 
 ```bash
 python3 scripts/motor_bench.py --arm
@@ -125,50 +159,39 @@ Camera-guided route, dry-run:
 python3 scripts/aruco_route.py --markers 0 1 2
 ```
 
-Physical camera-guided route after calibration/bench verification:
+Camera-guided route with motor output enabled after bring-up/calibration:
 
 ```bash
 python3 scripts/aruco_route.py --markers 0 1 2 --arm
 ```
 
-Full instructions are in `docs/BRINGUP.md`.
-
 ## Safety defaults
 
-- motor output is disabled unless `--arm` is explicitly supplied
 - ESP32 boots DISARMED
-- loss of serial commands triggers a watchdog stop/disarm
-- motor command magnitude is capped in configuration
-- visual-navigation code stops the robot when the target marker is lost beyond a short timeout
-- first motor test is designed for a chassis physically lifted off the floor
+- physical motor output requires an explicit arm action
+- command magnitude is capped
+- communications timeout stops and disarms the drive controller
+- visual-navigation target loss causes a stop after a short timeout
+- motor bring-up is simulation/dry-run first
 
-## What is intentionally not complete yet
+## HackRF phase
 
-The project does **not** claim the HackRF stage is implemented. The following belong to the next research phase:
+The future HackRF Pro integration is deliberately separated behind the RF interface so the rest of the rover does not need to be redesigned. Planned work includes:
 
-- HackRF Pro receive integration
-- real RF/IQ capture pipeline
-- RF event detection / feature extraction / ML analysis
-- final algorithm that converts RF evidence/uncertainty into the next movement direction or waypoint
-- controlled RF source-seeking experiments
+1. receive-side HackRF integration and reproducible IQ/spectral observations
+2. spatial RF measurements associated with rover pose
+3. controlled source-seeking experiments using an owned/authorized beacon
+4. signal/event feature extraction and anomaly/clustering experiments
+5. uncertainty-aware selection of the next measurement location
+6. characterization of self-generated EMI from motors, PWM, USB, power conversion, and onboard computing
 
-A small simulated RF interface remains in the repository only as a software boundary/prototyping aid; it is not presented as the final RF research result.
+A simple simulated RF source remains as a development boundary for testing interfaces; it is not presented as the final HackRF implementation.
 
-## Planned HackRF research
+## ROS 2 compatibility direction
 
-Once HackRF Pro is available, the existing navigation stack can be driven by RF observations instead of visual route targets. Planned experiments include:
+The core code is intentionally lightweight and does **not** require ROS 2 today. The interfaces map naturally onto ROS 2 concepts, however: body velocity commands can map to `Twist`, wheel control can be wrapped by `ros2_control`, pose/odometry can be published through standard messages, and the existing waypoint target can later be supplied by Nav2 or another planner.
 
-1. spatial RF measurements at robot positions
-2. autonomous source-seeking for an owned/authorized beacon
-3. anomaly detection and clustering of RF observations
-4. active sensing: choosing the next measurement location to reduce source-location uncertainty
-5. measuring self-generated EMI from motors, PWM, power conversion and onboard computing
-
-A likely RF measurement cycle is:
-
-```text
-MOVE -> STOP MOTORS -> SETTLE -> CAPTURE RF -> ANALYZE -> CHOOSE NEXT TARGET -> MOVE
-```
+Keeping this optional means the current rover can run directly on the Jetson while leaving a clean path to a full ROS 2 navigation stack if the project grows into SLAM, sensor fusion, or larger multi-node experiments.
 
 ## Repository layout
 
@@ -178,33 +201,35 @@ firmware/esp32/         low-level four-motor controller
 src/robot/              serial motor link + mecanum kinematics
 src/navigation/         waypoint + visual navigation controllers
 src/vision/             camera + ArUco pose estimation
-src/rf/                 future RF interface / current simulation boundary
+src/rf/                 future RF interface / simulation boundary
 scripts/                 hardware bring-up and navigation utilities
-docs/                    component inventory, wiring and bring-up notes
+docs/                    hardware, wiring, bring-up, and assets
 tests/                   deterministic non-hardware tests
-.github/workflows/       CI test workflow
+.github/workflows/       CI tests
 ```
 
-## Pre-HackRF completion checklist
+## Pre-HackRF status
 
 - [x] physical mecanum robot platform exists
-- [x] Jetson-based compute platform exists
+- [x] Jetson-based onboard compute platform exists
 - [x] ESP32 fail-safe four-motor firmware
-- [x] mecanum kinematics and wheel-polarity calibration support
+- [x] mecanum kinematics + configurable wheel polarity
+- [x] serial motor-control layer
 - [x] motor bring-up utility
 - [x] generic camera layer
 - [x] camera calibration utility
-- [x] ArUco detection and approach controller
+- [x] visual marker localization / approach controller
 - [x] multi-marker autonomous route code
-- [x] unit tests and CI configuration
-- [ ] measure exact motor stall current
-- [ ] wire/verify final four-channel motor driver arrangement
-- [ ] determine real wheel polarity values on stands
-- [ ] calibrate the selected C270/navigation camera on the actual robot
-- [ ] validate single-marker physical navigation
-- [ ] validate multi-marker physical navigation
-- [ ] identify and electrically validate the mounted proximity sensors
+- [x] startup self-check
+- [x] unit tests + CI
+- [x] hardware and wiring documentation
+- [x] README hardware overview illustration
+- [ ] chassis-specific electrical and calibration verification
+- [ ] HackRF Pro receive integration
+- [ ] RF/AI analysis pipeline
+- [ ] RF evidence -> next-waypoint policy
+- [ ] controlled RF source-seeking experiments
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).
