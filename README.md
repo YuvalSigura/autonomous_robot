@@ -14,7 +14,7 @@ Verified from the existing robot/repository and recent build photos:
 - ESP32 development board with screw-terminal I/O expansion board
 - L298N motor-driver hardware currently available/installed
 - two TB6612FNG dual H-bridge breakout boards available as a more efficient four-motor driver option (subject to motor stall-current verification)
-- USB camera / vision input planned around the existing Logitech C270 configuration
+- multiple camera types are available for the project; Logitech C270 is one confirmed model, while the rebuilt vision layer is camera-agnostic and supports OpenCV-visible USB/CSI cameras
 - small I2C OLED display
 - multiple cylindrical proximity/photoelectric sensors mounted around the chassis (exact model/electrical interface must be verified before final wiring)
 - HC-SR04 ultrasonic sensor modules available
@@ -63,6 +63,7 @@ For a mecanum platform, independent control of all four wheels is desirable. Two
 - waypoint controller for pose-to-target motion
 - active RF source-seeking baseline that can run against a simulated beacon
 - RF observation interface ready for a future HackRF-backed implementation
+- generic OpenCV camera wrapper and ArUco indoor pose-reference module
 - dry-run/simulation-first main program
 - configuration for motor limits, serial link and RF simulation
 
@@ -96,6 +97,7 @@ firmware/esp32/         low-level four-motor controller
 src/robot/              motor link + mecanum kinematics
 src/navigation/         waypoint and RF-search planning
 src/rf/                 RF interfaces + simulator
+src/vision/             camera + indoor visual pose reference
 src/main.py              simulation / hardware entry point
 docs/                    hardware, wiring and architecture notes
 tests/                   deterministic unit tests
@@ -108,10 +110,12 @@ tests/                   deterministic unit tests
 - [x] repository and containerized development environment
 - [x] safe four-wheel control architecture
 - [x] simulated RF source-seeking baseline
+- [x] generic multi-camera vision interface
+- [ ] inventory and benchmark all available camera models
 - [ ] verify exact motor stall current
 - [ ] wire 2 x TB6612FNG or select higher-current drivers if required
 - [ ] verify mounted proximity sensor model and output voltage
-- [ ] add repeatable indoor pose source (wheel encoders + IMU, or camera/ArUco reference localization)
+- [ ] calibrate selected navigation camera and add repeatable ArUco/AprilTag reference localization
 - [ ] bench-test physical movement at low speed
 - [ ] integrate HackRF Pro receive pipeline
 - [ ] run controlled authorized-beacon localization experiments
