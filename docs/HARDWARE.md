@@ -17,12 +17,28 @@ This document separates **verified components**, **likely components that still 
 - 2 x TB6612FNG dual H-bridge breakout boards available
 
 ### Position / sensing / UI
-- Logitech C270 USB camera listed in the original repository design
+- multiple cameras are available for the project; the original repository mentioned a Logitech C270, but the vision code is now camera-agnostic and accepts any OpenCV-visible USB/CSI camera
 - HC-SR04 ultrasonic modules available
 - IR receiver module available
 - u-blox NEO-6M GPS receiver + external antenna available
 - small I2C OLED display mounted on the compute enclosure
 - breadboards, resistors, jumper wires, LEDs, buttons and prototyping power modules
+
+## Camera plan
+
+Because several cameras are available, the first RF source-seeking demo does not need a new camera purchase.
+
+Recommended use:
+
+1. **Primary navigation/localization camera**
+   - choose the camera with the most stable Linux/OpenCV support, wide enough field of view and reliable exposure
+   - calibrate it once and use ArUco/AprilTag reference markers for repeatable indoor position during early experiments
+
+2. **Optional secondary camera**
+   - forward-facing obstacle/scene camera, recording camera, or later stereo experiment
+   - not required for the first autonomous RF experiment
+
+Using two cameras for stereo is possible, but it adds synchronization and calibration complexity. For the first reproducible demonstration, one calibrated camera plus known visual reference markers is the lower-risk design.
 
 ## Components visible but exact model/electrical interface must be confirmed
 
@@ -51,9 +67,10 @@ The current chassis can support basic commanded movement and proximity-based obs
 Best options, in order of effort:
 
 1. **Camera + ArUco/AprilTag reference localization**
-   - uses the existing camera
+   - uses one of the cameras already available
    - ideal for controlled indoor demonstrations
    - no wheel hardware change required
+   - initial code is included under `src/vision/`
 
 2. **Wheel encoders + IMU**
    - better general-purpose odometry
@@ -76,8 +93,9 @@ If available, these are especially useful:
 - buck/boost regulator sized for the robot computer power rail
 - motor suppression capacitors / ferrites
 - current sensor such as INA219/INA226 for power diagnostics
-- USB camera or CSI camera if the C270 is no longer available
 - directional antenna for later RF source-seeking experiments
+
+A new camera is **not** currently a priority because multiple cameras are already available.
 
 ## RF integration design notes
 
