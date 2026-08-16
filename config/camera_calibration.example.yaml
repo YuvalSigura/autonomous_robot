@@ -1,0 +1,7 @@
+# Replace these placeholder values with calibration results for the selected camera.
+camera_matrix:
+  - [600.0, 0.0, 320.0]
+  - [0.0, 600.0, 240.0]
+  - [0.0, 0.0, 1.0]
+dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+marker_length_m: 0.10
