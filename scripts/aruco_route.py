@@ -19,6 +19,16 @@ def load_yaml(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def apply_polarity(wheels, robot_cfg: dict):
+    p = robot_cfg.get("wheel_polarity", {})
+    return wheels.with_polarity(
+        int(p.get("front_left", 1)),
+        int(p.get("front_right", 1)),
+        int(p.get("rear_left", 1)),
+        int(p.get("rear_right", 1)),
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Drive SpectraRover through a sequence of visible ArUco markers."
@@ -106,7 +116,7 @@ def main() -> None:
                             cmd.wz,
                             limit=float(robot["max_command"]),
                         )
-                        link.send_wheels(wheels)
+                        link.send_wheels(apply_polarity(wheels, robot))
 
                     time.sleep(0.02)
         except KeyboardInterrupt:
