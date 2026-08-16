@@ -10,6 +10,11 @@ robot:
   track_width_m: 0.18
   max_command: 0.35
   settle_before_rf_s: 0.75
+  wheel_polarity:
+    front_left: 1
+    front_right: 1
+    rear_left: 1
+    rear_right: 1
 
 motor_controller:
   port: /dev/ttyUSB0
@@ -24,8 +29,20 @@ navigation:
   angular_gain: 1.2
   max_linear_command: 0.30
   max_angular_command: 0.30
+  aruco:
+    marker_length_m: 0.16
+    target_distance_m: 0.55
+    distance_tolerance_m: 0.08
+    lateral_tolerance_m: 0.06
+    forward_gain: 0.8
+    lateral_gain: 1.0
+    yaw_gain: 0.8
+    max_forward: 0.22
+    max_lateral: 0.18
+    max_yaw: 0.20
 
 rf:
+  # Placeholder until HackRF integration. The non-RF robot stack does not depend on it.
   backend: simulated
   simulated_beacon:
     x_m: 3.0
