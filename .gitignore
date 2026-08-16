@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local calibration / runtime state
+config/camera_calibration.yaml
+logs/
+*.log
+
+# Local data and captures
+data/
+captures/
+*.iq
+*.cfile
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
