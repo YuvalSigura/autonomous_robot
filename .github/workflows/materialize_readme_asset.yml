@@ -1,0 +1,31 @@
+name: materialize-readme-asset
+
+on:
+  push:
+    branches: [spectrarover-rebuild]
+    paths:
+      - '.asset-upload/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  decode-asset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode staged README image
+        run: |
+          set -euo pipefail
+          test -f .asset-upload/READY
+          mkdir -p docs/assets
+          cat .asset-upload/part-* | base64 --decode > docs/assets/spectrarover-hardware-overview.webp
+          file docs/assets/spectrarover-hardware-overview.webp
+          rm -rf .asset-upload
+      - name: Commit generated binary asset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/spectrarover-hardware-overview.webp .asset-upload
+          git commit -m "Add SpectraRover hardware overview image"
+          git push
