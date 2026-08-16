@@ -20,7 +20,8 @@ class MotorControllerLink:
     """Explicit serial protocol to the ESP32 motor controller.
 
     Physical motion requires both an explicit `arm()` call and firmware-side ARM
-    state. Firmware watchdog behavior is independent of this host class.
+    state. Each state-changing/drive command consumes the firmware acknowledgement
+    so the host receive buffer cannot silently fill during a long navigation run.
     """
 
     def __init__(self, config: MotorLinkConfig, dry_run: bool = True) -> None:
@@ -73,6 +74,8 @@ class MotorControllerLink:
             line = raw.decode("ascii", errors="replace").strip()
             if line.startswith(prefix):
                 return line
+            if line.startswith("ERR") or line.startswith("WATCHDOG"):
+                raise RuntimeError(f"ESP32 motor controller: {line}")
         raise TimeoutError(f"No ESP32 reply beginning with {prefix!r}")
 
     def ping(self) -> str:
@@ -90,10 +93,14 @@ class MotorControllerLink:
     def disarm(self) -> None:
         if self._armed or self.dry_run:
             self._write("DISARM")
+            if not self.dry_run:
+                self._read_until_prefix("OK DISARMED")
         self._armed = False
 
     def stop(self) -> None:
         self._write("STOP")
+        if not self.dry_run:
+            self._read_until_prefix("OK STOPPED")
 
     def send_wheels(self, command: WheelCommand) -> None:
         if not self._armed:
@@ -104,6 +111,8 @@ class MotorControllerLink:
             f"{command.front_left:.4f} {command.front_right:.4f} "
             f"{command.rear_left:.4f} {command.rear_right:.4f}"
         )
+        if not self.dry_run:
+            self._read_until_prefix("OK WHEELS")
 
     def __enter__(self) -> "MotorControllerLink":
         self.open()
