@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import argparse
 import math
+import sys
 import time
 from pathlib import Path
+
+# Allow both `python -m src.main` and `python src/main.py` from the repo root.
+if __package__ in (None, ""):
+    ROOT = Path(__file__).resolve().parents[1]
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 
 import yaml
 
 from src.navigation.active_rf_search import ActiveRFSearchPlanner
 from src.navigation.waypoint import Pose2D
 from src.rf.simulated import SimulatedBeacon
-from src.robot.mecanum import mix_mecanum
+from src.robot.mecanum import WheelCommand, mix_mecanum
 from src.robot.serial_link import MotorControllerLink, MotorLinkConfig
 
 
@@ -19,7 +26,18 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def _apply_polarity(command: WheelCommand, robot_cfg: dict) -> WheelCommand:
+    polarity = robot_cfg.get("wheel_polarity", {})
+    return command.with_polarity(
+        int(polarity.get("front_left", 1)),
+        int(polarity.get("front_right", 1)),
+        int(polarity.get("rear_left", 1)),
+        int(polarity.get("rear_right", 1)),
+    )
+
+
 def run_rf_simulation(cfg: dict, iterations: int = 20) -> None:
+    """Exercise the future RF/planner interface with a synthetic beacon only."""
     rf_cfg = cfg["rf"]
     sim_cfg = rf_cfg["simulated_beacon"]
     search_cfg = rf_cfg["search"]
@@ -56,7 +74,7 @@ def run_rf_simulation(cfg: dict, iterations: int = 20) -> None:
 
 
 def run_motor_smoke(cfg: dict, arm: bool) -> None:
-    """Low-level bench test. Put the robot on stands before using --arm."""
+    """Short low-level bench test; use `scripts/motor_bench.py` for full bring-up."""
     mc = cfg["motor_controller"]
     robot_cfg = cfg["robot"]
     link_cfg = MotorLinkConfig(
@@ -65,21 +83,24 @@ def run_motor_smoke(cfg: dict, arm: bool) -> None:
         command_limit=float(robot_cfg["max_command"]),
     )
 
-    dry_run = not arm
-    with MotorControllerLink(link_cfg, dry_run=dry_run) as link:
+    with MotorControllerLink(link_cfg, dry_run=not arm) as link:
         link.arm()
-        patterns = [
-            ("forward", mix_mecanum(0.15, 0.0, 0.0, robot_cfg["max_command"])),
-            ("strafe-right", mix_mecanum(0.0, 0.15, 0.0, robot_cfg["max_command"])),
-            ("rotate", mix_mecanum(0.0, 0.0, 0.15, robot_cfg["max_command"])),
-        ]
-        for name, command in patterns:
-            print(f"motor test: {name} -> {command}")
-            link.send_wheels(command)
-            time.sleep(0.35 if arm else 0.05)
+        try:
+            patterns = [
+                ("forward", mix_mecanum(0.15, 0.0, 0.0, 1.0)),
+                ("strafe-right", mix_mecanum(0.0, 0.15, 0.0, 1.0)),
+                ("rotate", mix_mecanum(0.0, 0.0, 0.15, 1.0)),
+            ]
+            for name, raw_command in patterns:
+                command = _apply_polarity(raw_command, robot_cfg)
+                print(f"motor test: {name} -> {command}")
+                link.send_wheels(command)
+                time.sleep(0.35 if arm else 0.05)
+                link.stop()
+                time.sleep(0.25 if arm else 0.05)
+        finally:
             link.stop()
-            time.sleep(0.25 if arm else 0.05)
-        link.disarm()
+            link.disarm()
 
 
 def main() -> None:
@@ -97,7 +118,7 @@ def main() -> None:
     cfg = load_config(args.config)
     if args.mode == "rf-sim":
         run_rf_simulation(cfg, args.iterations)
-    elif args.mode == "motor-smoke":
+    else:
         run_motor_smoke(cfg, arm=args.arm)
 
 
